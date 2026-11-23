@@ -1,17 +1,14 @@
 import os
 import json
-import requests
 from flask import Flask, request, jsonify, render_template
+from groq import Groq, APIConnectionError, APIStatusError
 
 app = Flask(__name__)
 
-# Read the key from the environment (see README, Step 2)
 API_KEY = os.environ.get("API_KEY")
-
-# Free-tier chat endpoint and model. If the provider changes these, update them here.
-
-API_URL = os.environ.get("API_URL", "https://api.groq.com/openai/v1/chat/completions")
 MODEL = os.environ.get("MODEL", "openai/gpt-oss-20b")
+
+client = Groq(api_key=API_KEY) if API_KEY else None
 
 
 @app.route("/")
@@ -21,7 +18,7 @@ def home():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    if not API_KEY:
+    if client is None:
         return jsonify({"error": "API_KEY is not set. See the README, Step 2."}), 500
 
     topic = (request.get_json(silent=True) or {}).get("topic", "").strip()
@@ -36,19 +33,17 @@ def generate():
     )
 
     try:
-        response = requests.post(
-            API_URL,
-            headers={"Authorization": f"Bearer {API_KEY}"},
-            json={"model": MODEL, "messages": [{"role": "user", "content": prompt}]},
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
             timeout=30,
         )
-    except requests.RequestException:
-        return jsonify({"error": "Could not reach the model. Check your internet connection."}), 502
+    except APIConnectionError:
+        return jsonify({"error": "Could not reach Groq. Check your internet connection."}), 502
+    except APIStatusError as e:
+        return jsonify({"error": f"Groq returned status {e.status_code}: {e.message}"}), 502
 
-    if response.status_code != 200:
-        return jsonify({"error": "The model request failed. Check your API key and model name."}), 502
-
-    text = response.json()["choices"][0]["message"]["content"]
+    text = completion.choices[0].message.content or ""
     try:
         cards = json.loads(text[text.index("["): text.rindex("]") + 1])
     except ValueError:
