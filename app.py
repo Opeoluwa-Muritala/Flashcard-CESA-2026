@@ -9,8 +9,9 @@ app = Flask(__name__)
 API_KEY = os.environ.get("API_KEY")
 
 # Free-tier chat endpoint and model. If the provider changes these, update them here.
-API_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = "llama-3.1-8b-instant"
+
+API_URL = os.environ.get("API_URL", "https://api.groq.com/openai/v1/chat/completions")
+MODEL = os.environ.get("MODEL", "openai/gpt-oss-20b")
 
 
 @app.route("/")
