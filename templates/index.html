@@ -2,155 +2,475 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Flashcard Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flashcards</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; max-width: 640px; margin: 40px auto; text-align: center; padding: 0 16px; }
-    textarea { width: 100%; height: 100px; font-size: 16px; box-sizing: border-box; padding: 8px; }
-    button { font-size: 16px; padding: 10px 18px; margin: 5px; cursor: pointer; }
+    :root {
+      --paper: #F6F7F4;
+      --ink: #1B2430;
+      --pencil: #6B7585;
+      --margin: #C8453B;
+      --pass: #2F7D5B;
+      --card: #FFFFFF;
+      --rule: #DCE1E8;
+      --focus: #4A7BD0;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 760px;
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 32px 20px 40px;
+      display: flex;
+      flex-direction: column;
+    }
+    h1, h2 { font-family: "Source Serif 4", Georgia, serif; font-weight: 600; margin: 0 0 16px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.25rem; }
+
+    .view { display: none; flex: 1; flex-direction: column; }
+    .view.active { display: flex; }
+
+    textarea, input[type="file"] {
+      width: 100%;
+      font: inherit;
+      padding: 12px;
+      border: 1px solid var(--pencil);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 150px; resize: vertical; }
+
+    button {
+      font: inherit;
+      padding: 10px 18px;
+      border: 1px solid var(--ink);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+    }
     button:disabled { opacity: 0.4; cursor: default; }
-    .scene { perspective: 1000px; margin: 24px 0 8px; }
-    .card { position: relative; width: 100%; min-height: 200px; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible, .card:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .primary { background: var(--ink); color: #fff; }
+
+    .modes { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .modes button[aria-selected="true"] { background: var(--ink); color: #fff; }
+    .field { margin-bottom: 16px; }
+    .hint { color: var(--pencil); font-size: 0.95rem; margin: 6px 0 0; }
+
+    .status { min-height: 1.5em; color: var(--pencil); margin: 8px 0 24px; }
+    .status.error { color: var(--margin); }
+
+    .deck-list { list-style: none; margin: 0; padding: 0; }
+    .deck-list li {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--rule);
+    }
+    .deck-list .open {
+      background: none; border: none; padding: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+    }
+    .deck-list .open strong { font-family: "Source Serif 4", Georgia, serif; font-weight: 600; }
+    .meta { color: var(--pencil); font-size: 0.9rem; display: block; }
+    .delete { font-size: 0.9rem; padding: 6px 10px; }
+
+    .deck-head {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 24px;
+    }
+    .deck-head h2 { margin: 0; overflow-wrap: anywhere; }
+    .deck-head a { color: var(--pencil); white-space: nowrap; }
+
+    .card-wrap { flex: 1; display: flex; align-items: center; perspective: 1200px; }
+    .card {
+      position: relative;
+      width: 100%;
+      min-height: min(66vh, 520px);
+      transform-style: preserve-3d;
+      transition: transform 0.6s ease;
+      cursor: pointer;
+    }
     .card.flipped { transform: rotateY(180deg); }
-    .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-            display: flex; align-items: center; justify-content: center; border: 2px solid #333;
-            border-radius: 12px; padding: 30px; box-sizing: border-box; font-size: 20px; background: #fff; }
-    .back { transform: rotateY(180deg); background: #eef5ff; }
-    .hint { color: #555; font-size: 14px; }
-    #score { font-weight: bold; font-size: 18px; }
+    .face {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 40px 48px 88px;
+      background-color: var(--card);
+      background-image: repeating-linear-gradient(to bottom, transparent 0 35px, var(--rule) 35px 36px);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      box-shadow: 0 6px 18px rgba(27, 36, 48, 0.08);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .face::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 64px;
+      border-left: 2px solid var(--margin);
+    }
+    .back { transform: rotateY(180deg); }
+    .face p {
+      margin: 0;
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(1.4rem, 3.4vw, 2rem);
+      line-height: 1.45;
+      text-align: center;
+      overflow-wrap: anywhere;
+      max-width: 100%;
+    }
+
+    .actions {
+      display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+      margin-top: 24px; min-height: 52px;
+    }
+    .actions.is-hidden { visibility: hidden; }
+    .actions button { min-width: 140px; padding: 14px 22px; font-size: 1.05rem; }
+    .btn-right { border-color: var(--pass); color: var(--pass); }
+    .btn-wrong { border-color: var(--margin); color: var(--margin); }
+
+    .score { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    #score-line {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2rem, 6vw, 3rem);
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    #score-sub { color: var(--pencil); margin: 0 0 32px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card { transition: none; }
+    }
   </style>
 </head>
 <body>
-  <h1>Flashcard Generator</h1>
+<main>
 
-  <textarea id="topic" placeholder="Type a topic or paste your notes here"></textarea><br>
-  <button id="genBtn" onclick="generate()">Generate Cards</button>
+  <!-- Generate page -->
+  <section id="view-generate" class="view active" aria-labelledby="gen-title">
+    <h1 id="gen-title">Flashcards</h1>
 
-  <div class="hint" id="progress"></div>
-
-  <div class="scene">
-    <div class="card" id="card" onclick="flip()">
-      <div class="face front" id="front">Your question will appear here.</div>
-      <div class="face back" id="back"></div>
+    <div class="modes" role="tablist" aria-label="Card source">
+      <button type="button" role="tab" data-mode="topic" aria-selected="true">Topic</button>
+      <button type="button" role="tab" data-mode="questions" aria-selected="false">Questions</button>
+      <button type="button" role="tab" data-mode="pdf" aria-selected="false">PDF</button>
     </div>
-  </div>
-  <div class="hint">Click the card to flip it and reveal the answer.</div>
 
-  <p>
-    <button id="wrongBtn" onclick="mark(false)" disabled>I got it wrong</button>
-    <button id="rightBtn" onclick="mark(true)" disabled>I got it right</button>
-    <button id="nextBtn" onclick="nextCard()" disabled>Next</button>
-  </p>
+    <div class="field input-pane" data-mode="topic">
+      <label for="topic-text">Topic or notes</label>
+      <textarea id="topic-text" placeholder="For example: how a CPU pipeline works"></textarea>
+    </div>
 
-  <div>Score: <span id="score">0 / 0</span></div>
+    <div class="field input-pane" data-mode="questions" hidden>
+      <label for="questions-text">Questions, one per line</label>
+      <textarea id="questions-text" placeholder="What is an interrupt?&#10;Why does a stack grow downward?"></textarea>
+      <p class="hint">Each question becomes one card, up to 10.</p>
+    </div>
 
-  <script>
-    let cards = [];
-    let index = 0;
-    let correct = 0;
+    <div class="field input-pane" data-mode="pdf" hidden>
+      <label for="pdf-file">PDF file</label>
+      <input type="file" id="pdf-file" accept="application/pdf">
+      <p class="hint">Up to 5 MB. Scanned PDFs without text won't work.</p>
+    </div>
+
+    <button type="button" id="generate-btn" class="primary">Generate cards</button>
+    <p class="status" id="gen-status" role="status"></p>
+
+    <h2>Saved decks</h2>
+    <ul class="deck-list" id="deck-list"></ul>
+  </section>
+
+  <!-- Deck page -->
+  <section id="view-deck" class="view" aria-label="Study deck">
+    <div class="deck-head">
+      <h2 id="deck-title"></h2>
+      <a href="#" id="back-btn">Back</a>
+    </div>
+
+    <div class="card-wrap">
+      <div class="card" id="card" tabindex="0" role="button" aria-label="Flip card">
+        <div class="face front"><p id="question"></p></div>
+        <div class="face back"><p id="answer"></p></div>
+      </div>
+    </div>
+
+    <div class="actions is-hidden" id="deck-actions">
+      <button type="button" id="wrong-btn" class="btn-wrong">Wrong</button>
+      <button type="button" id="right-btn" class="btn-right">Right</button>
+    </div>
+  </section>
+
+  <!-- Score page -->
+  <section id="view-score" class="view score" aria-label="Score">
+    <p id="score-line"></p>
+    <p id="score-sub"></p>
+    <div class="actions">
+      <button type="button" id="retry-btn">Retry</button>
+      <button type="button" id="next-btn" class="primary">Next</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const KEY = "flashcards.decks";
+  const MAX_DECKS = 20;
+  const MAX_PDF = 5 * 1024 * 1024;
+
+  const $ = (id) => document.getElementById(id);
+
+  let mode = "topic";
+  let deck = null;   // { title, cards, index, flipped, attempts: [[true, false], ...] }
+  let saved = loadDecks();
+
+  // ---------- storage ----------
+  function loadDecks() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch { return []; }
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(saved.slice(0, MAX_DECKS))); }
+    catch { setStatus("Could not save to this browser. Storage may be full.", true); }
+  }
+
+  // ---------- views ----------
+  function show(name) {
+    document.querySelectorAll(".view").forEach((v) =>
+      v.classList.toggle("active", v.id === "view-" + name));
+    window.scrollTo(0, 0);
+  }
+  function setStatus(message, isError = false) {
+    const el = $("gen-status");
+    el.textContent = message;
+    el.classList.toggle("error", isError);
+  }
+
+  // ---------- generate page ----------
+  document.querySelectorAll(".modes button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      mode = btn.dataset.mode;
+      document.querySelectorAll(".modes button").forEach((b) =>
+        b.setAttribute("aria-selected", String(b === btn)));
+      document.querySelectorAll(".input-pane").forEach((p) =>
+        p.hidden = p.dataset.mode !== mode);
+      setStatus("");
+    });
+  });
+
+  async function generate() {
+    setStatus("");
+    const form = new FormData();
+    form.append("mode", mode);
+    let title;
+
+    if (mode === "pdf") {
+      const file = $("pdf-file").files[0];
+      if (!file) return setStatus("Choose a PDF first.", true);
+      if (file.size > MAX_PDF) return setStatus("That PDF is larger than 5 MB.", true);
+      form.append("pdf", file);
+      title = file.name.replace(/\.pdf$/i, "");
+    } else {
+      const text = $(mode === "topic" ? "topic-text" : "questions-text").value.trim();
+      if (!text) return setStatus(mode === "topic" ? "Type a topic first." : "Add at least one question.", true);
+      form.append("text", text);
+      title = text.split("\n")[0].slice(0, 60);
+    }
+
+    $("generate-btn").disabled = true;
+    setStatus("Making your cards...");
+    try {
+      const res = await fetch("/generate", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) return setStatus(data.error, true);
+      setStatus("");
+      startDeck(title, data);
+    } catch {
+      setStatus("Could not reach the server. Is it running?", true);
+    } finally {
+      $("generate-btn").disabled = false;
+    }
+  }
+
+  function renderDecks() {
+    const list = $("deck-list");
+    list.replaceChildren();
+    if (!saved.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "No saved decks yet. Finished decks appear here.";
+      empty.style.color = "var(--pencil)";
+      list.append(empty);
+      return;
+    }
+    saved.forEach((item, i) => {
+      const li = document.createElement("li");
+
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "open";
+      const name = document.createElement("strong");
+      name.textContent = item.title;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${item.right} of ${item.total} right · ${new Date(item.date).toLocaleDateString()}`;
+      open.append(name, meta);
+      open.addEventListener("click", () => startDeck(item.title, item.cards));
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "delete";
+      del.textContent = "Delete";
+      del.addEventListener("click", () => {
+        if (!confirm(`Delete "${item.title}"?`)) return;
+        saved.splice(i, 1);
+        persist();
+        renderDecks();
+      });
+
+      li.append(open, del);
+      list.append(li);
+    });
+  }
+
+  // ---------- deck page ----------
+  function startDeck(title, cards) {
+    deck = { title, cards, index: 0, flipped: false, attempts: cards.map(() => []) };
+    $("deck-title").textContent = title;
+    renderCard();
+    show("deck");
+  }
+
+  function renderCard() {
+    const card = deck.cards[deck.index];
+    $("question").textContent = card.question;
+    $("answer").textContent = card.answer;
+    $("card").classList.toggle("flipped", deck.flipped);
+    $("deck-actions").classList.toggle("is-hidden", !deck.flipped);
+  }
+
+  function flip() {
+    if (!deck || deck.flipped) return;
+    deck.flipped = true;
+    renderCard();
+  }
+
+  function mark(right) {
+    if (!deck || !deck.flipped) return;
+    deck.attempts[deck.index].push(right);
+    renderScore();
+    show("score");
+  }
+
+  // Score uses each card's latest attempt, so a retry replaces the earlier result.
+  function tally() {
+    let right = 0;
     let answered = 0;
-    let flipped = false;
-    let marked = false;
-
-    const cardEl = document.getElementById("card");
-    const frontEl = document.getElementById("front");
-    const backEl = document.getElementById("back");
-    const progressEl = document.getElementById("progress");
-    const scoreEl = document.getElementById("score");
-    const genBtn = document.getElementById("genBtn");
-    const rightBtn = document.getElementById("rightBtn");
-    const wrongBtn = document.getElementById("wrongBtn");
-    const nextBtn = document.getElementById("nextBtn");
-
-    async function generate() {
-      const topic = document.getElementById("topic").value;
-      genBtn.disabled = true;
-      frontEl.textContent = "Generating...";
-      backEl.textContent = "";
-      cardEl.classList.remove("flipped");
-      flipped = false;
-      try {
-        const res = await fetch("/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic: topic })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          frontEl.textContent = data.error;
-          cards = [];
-        } else {
-          cards = data;
-          index = 0;
-          correct = 0;
-          answered = 0;
-          showCard();
-        }
-      } catch (err) {
-        frontEl.textContent = "Something went wrong. Is the server running?";
-        cards = [];
+    deck.attempts.forEach((a) => {
+      if (a.length) {
+        answered++;
+        if (a[a.length - 1]) right++;
       }
-      genBtn.disabled = false;
-      updateScore();
-      updateButtons();
-    }
+    });
+    return { right, answered };
+  }
 
-    function showCard() {
-      const card = cards[index];
-      cardEl.classList.remove("flipped");
-      flipped = false;
-      marked = false;
-      frontEl.textContent = card.question;
-      backEl.textContent = card.answer;
-      progressEl.textContent = `Card ${index + 1} of ${cards.length}`;
-      updateButtons();
-    }
+  function renderScore() {
+    const { right, answered } = tally();
+    const last = deck.index === deck.cards.length - 1;
+    $("score-line").textContent = `${right} of ${answered} right`;
+    $("score-sub").textContent = `Card ${deck.index + 1} of ${deck.cards.length}`;
+    $("next-btn").textContent = last ? "Finish" : "Next";
+  }
 
-    function flip() {
-      if (!cards.length) return;
-      flipped = !flipped;
-      cardEl.classList.toggle("flipped", flipped);
-      updateButtons();
-    }
+  function retry() {
+    deck.flipped = false;
+    renderCard();
+    show("deck");
+  }
 
-    function mark(isCorrect) {
-      if (!cards.length || !flipped || marked) return;
-      marked = true;
-      answered++;
-      if (isCorrect) correct++;
-      updateScore();
-      updateButtons();
+  function next() {
+    if (!deck) return;
+    if (deck.index < deck.cards.length - 1) {
+      deck.index++;
+      deck.flipped = false;
+      renderCard();
+      show("deck");
+    } else {
+      finish();
     }
+  }
 
-    function nextCard() {
-      if (!cards.length) return;
-      if (index + 1 < cards.length) {
-        index++;
-        showCard();
-      } else {
-        finish();
-      }
-    }
+  function finish() {
+    const { right } = tally();
+    saved.unshift({
+      title: deck.title,
+      date: new Date().toISOString(),
+      right,
+      total: deck.cards.length,
+      cards: deck.cards,
+    });
+    persist();
+    deck = null;
+    renderDecks();
+    show("generate");
+    setStatus(`Saved to saved decks: ${right} of ${saved[0].total} right.`);
+  }
 
-    function finish() {
-      cards = [];
-      cardEl.classList.remove("flipped");
-      flipped = false;
-      frontEl.textContent = `Deck complete! You got ${correct} of ${answered} right.`;
-      backEl.textContent = "";
-      progressEl.textContent = "Generate a new deck to study again.";
-      updateButtons();
-    }
+  function goBack(event) {
+    event.preventDefault();
+    if (deck && tally().answered > 0 && !confirm("Leave this deck? Progress won't be saved.")) return;
+    deck = null;
+    show("generate");
+  }
 
-    function updateScore() {
-      scoreEl.textContent = `${correct} / ${answered}`;
-    }
+  // ---------- wiring ----------
+  $("generate-btn").addEventListener("click", generate);
+  $("card").addEventListener("click", flip);
+  $("right-btn").addEventListener("click", () => mark(true));
+  $("wrong-btn").addEventListener("click", () => mark(false));
+  $("retry-btn").addEventListener("click", retry);
+  $("next-btn").addEventListener("click", next);
+  $("back-btn").addEventListener("click", goBack);
 
-    function updateButtons() {
-      const hasCards = cards.length > 0;
-      rightBtn.disabled = !(hasCards && flipped && !marked);
-      wrongBtn.disabled = !(hasCards && flipped && !marked);
-      nextBtn.disabled = !hasCards || !marked;
+  document.addEventListener("keydown", (e) => {
+    if (!deck || e.target.matches("textarea, input")) return;
+    const onDeck = $("view-deck").classList.contains("active");
+    const onScore = $("view-score").classList.contains("active");
+
+    if (onDeck && e.key === " " && e.target.tagName !== "BUTTON") {
+      e.preventDefault();
+      flip();
+    } else if (onDeck && deck.flipped && (e.key === "r" || e.key === "R")) {
+      mark(true);
+    } else if (onDeck && deck.flipped && (e.key === "w" || e.key === "W")) {
+      mark(false);
+    } else if (onScore && (e.key === "n" || e.key === "N")) {
+      next();
     }
-  </script>
+  });
+
+  renderDecks();
+  show("generate");
+</script>
 </body>
 </html>
